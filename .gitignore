@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+bin/
+lib/
+include/
+pyvenv.cfg
+
+# Local Configuration & Secrets (CRITICAL: Do not commit credentials)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Scraper Output & Database Files (Dynamically generated)
+deals_today.html
+price_history.csv
+price_history.json
+tracker.log
+
+# Debug Screenshots
+step1_homepage.png
+step2_after_agegate.png
+step3_state_selector.png
+step4_after_login_click.png
+*.png
+
+# Playwright Browser Cache (if installed locally in project dir)
+.playwright/
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
