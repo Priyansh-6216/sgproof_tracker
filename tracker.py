@@ -471,22 +471,40 @@ def scrape_products(products):
                     page.keyboard.press("Enter")
                     
                     try:
-                        page.wait_for_load_state("networkidle", timeout=8000)
+                        page.wait_for_load_state("networkidle", timeout=5000)
                     except Exception:
                         pass
-                    page.wait_for_timeout(4000)
+                        
+                    # Hard wait to ensure the site actually loads the product grid
+                    log("    Waiting for search results to load...")
+                    page.wait_for_timeout(8000)
 
                     # Click first search result to access PDP
                     detail_link = None
-                    for sel in ["a[href*='/p/']", "a.MuiLink-root[href*='/p/']", ".product-card a", "[class*='product-card'] a", ".product-item a", "[class*='product-item'] a", ".product-tile a", ".cx-product-card a"]:
-                        try:
-                            el = page.locator(sel).first
-                            if el.is_visible(timeout=3000):
-                                detail_link = el.get_attribute("href")
-                                if detail_link:
+                    
+                    try:
+                        # Grab all anchor tags that contain '/p/' (product links)
+                        links = page.locator("a[href*='/p/']").all()
+                        for link in links[:10]: # Check the first 10 links
+                            if link.is_visible(timeout=1000):
+                                href = link.get_attribute("href")
+                                if href and "/p/" in href:
+                                    detail_link = href
                                     break
-                        except Exception:
-                            continue
+                    except Exception as e:
+                        log(f"    Failed grabbing product links: {e}")
+
+                    if not detail_link:
+                        # Fallback generic query
+                        for sel in [".product-card a", ".product-item a", ".product-tile a"]:
+                            try:
+                                el = page.locator(sel).first
+                                if el.is_visible(timeout=3000):
+                                    detail_link = el.get_attribute("href")
+                                    if detail_link:
+                                        break
+                            except Exception:
+                                continue
 
                     if detail_link:
                         target_url = detail_link if detail_link.startswith("http") else f"https://shop.sgproof.com{detail_link}"
@@ -1081,8 +1099,7 @@ def main():
     results = scrape_products(products)
 
     if not results:
-        log("No results scraped — check internet connection, login credentials, and product page access.")
-        return
+        log("WARNING: No results scraped! The email will be sent but it will be empty.")
 
     # Store findings in history
     for entry in results:

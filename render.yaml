@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: sgproof-tracker
+    env: python
+    buildCommand: "pip install -r requirements.txt && playwright install chromium && playwright install-deps chromium"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: SGPROOF_EMAIL
+        sync: false
+      - key: SGPROOF_PASSWORD
+        sync: false
+      - key: EMAIL_SENDER
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_RECIPIENT
+        sync: false

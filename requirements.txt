@@ -1,2 +1,5 @@
 playwright>=1.40.0
 python-dotenv>=1.0.0
+Flask>=3.0.0
+Werkzeug>=3.0.0
+gunicorn>=21.2.0

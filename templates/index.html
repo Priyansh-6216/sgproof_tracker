@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGProof Tracker Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <header>
+        <h1>SGProof Tracker Manager</h1>
+        <p>Manage your products and trigger the price tracking bot</p>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar Controls -->
+        <div class="controls">
+            <div class="glass-panel">
+                <h2>Add New Product</h2>
+                <form id="addForm">
+                    <div class="form-group">
+                        <label for="name">Product Name</label>
+                        <input type="text" id="name" required placeholder="e.g., Tito's Handmade Vodka 1.75L">
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <input type="text" id="category" required placeholder="e.g., Vodka">
+                    </div>
+                    <div class="form-group">
+                        <label for="url">Direct URL (Optional)</label>
+                        <input type="url" id="url" placeholder="https://shop.sgproof.com/...">
+                    </div>
+                    <div class="form-group">
+                        <label for="case_size">Case Size</label>
+                        <input type="number" id="case_size" value="12" required min="1">
+                    </div>
+                    <button type="submit">Add Product</button>
+                </form>
+
+                <h2 style="margin-top: 2rem;">Upload CSV</h2>
+                <div class="file-upload">
+                    <button class="upload-btn">Choose products.csv file</button>
+                    <input type="file" id="fileInput" accept=".csv">
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem; text-align: center;">Replaces current product list</p>
+            </div>
+
+            <button id="runBtn" class="btn-run">▶ Run Tracker & Send Email</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="glass-panel">
+            <h2>Current Products</h2>
+            <div style="overflow-x: auto;">
+                <table id="productsTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Case Size</th>
+                            <th>URL</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Action successful!</div>
+
+    <script>
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.backgroundColor = isError ? 'var(--danger)' : 'var(--accent)';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        async function loadProducts() {
+            try {
+                const res = await fetch('/api/products');
+                const products = await res.json();
+                const tbody = document.querySelector('#productsTable tbody');
+                tbody.innerHTML = '';
+                
+                products.forEach((p, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${p.name}</td>
+                        <td>${p.category || 'General'}</td>
+                        <td>${p.case_size || '12'}</td>
+                        <td>${p.url ? `<a href="${p.url}" target="_blank" style="color: var(--accent);">Link</a>` : '-'}</td>
+                        <td><button style="background: var(--danger); padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="deleteProduct(${index})">Remove</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error("Failed to load products", err);
+            }
+        }
+
+        async function deleteProduct(index) {
+            if (!confirm("Are you sure you want to remove this product?")) return;
+            
+            try {
+                const res = await fetch(`/api/products/${index}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showToast('Product removed successfully!');
+                    loadProducts();
+                } else {
+                    showToast('Failed to remove product', true);
+                }
+            } catch (err) {
+                showToast('Error connecting to server', true);
+            }
+        }
+
+        document.getElementById('addForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('name').value,
+                category: document.getElementById('category').value,
+                url: document.getElementById('url').value,
+                case_size: document.getElementById('case_size').value
+            };
+
+            try {
+                const res = await fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    showToast('Product added successfully!');
+                    document.getElementById('addForm').reset();
+                    loadProducts();
+                } else {
+                    showToast('Failed to add product', true);
+                }
+            } catch (err) {
+                showToast('Error connecting to server', true);
+            }
+        });
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (res.ok) {
+                    showToast('CSV replaced successfully!');
+                    loadProducts();
+                } else {
+                    const data = await res.json();
+                    showToast(data.error || 'Failed to upload CSV', true);
+                }
+            } catch (err) {
+                showToast('Error uploading file', true);
+            }
+            // Reset input
+            e.target.value = '';
+        });
+
+        document.getElementById('runBtn').addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/run_tracker', { method: 'POST' });
+                if (res.ok) {
+                    showToast('Tracker started! Email will be sent upon completion.');
+                } else {
+                    showToast('Failed to start tracker', true);
+                }
+            } catch (err) {
+                showToast('Error connecting to server', true);
+            }
+        });
+
+        // Initial load
+        loadProducts();
+    </script>
+</body>
+</html>

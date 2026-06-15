@@ -28,6 +28,7 @@ deals_today.html
 price_history.csv
 price_history.json
 tracker.log
+status.json
 
 # Debug Screenshots
 step1_homepage.png
