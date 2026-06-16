@@ -45,4 +45,4 @@ COPY . .
 EXPOSE 10000
 
 # Start the app with gunicorn and xvfb-run to provide a virtual display
-CMD ["xvfb-run", "-a", "gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "300", "app:app"]
+CMD ["sh", "-c", "xvfb-run -a gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 300 app:app"]
