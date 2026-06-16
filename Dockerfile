@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     wget \
     fonts-liberation \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -43,5 +44,5 @@ COPY . .
 # Expose port
 EXPOSE 10000
 
-# Start the app with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "300", "app:app"]
+# Start the app with gunicorn and xvfb-run to provide a virtual display
+CMD ["xvfb-run", "-a", "gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "300", "app:app"]
