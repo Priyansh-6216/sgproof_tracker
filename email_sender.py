@@ -34,6 +34,15 @@ def send_deals_email():
     msg.attach(part2)
 
     try:
+        # Force IPv4 to fix Railway's "Network is unreachable" error (often caused by IPv6 routing issues)
+        import socket
+        old_getaddrinfo = socket.getaddrinfo
+        def force_ipv4_getaddrinfo(*args, **kwargs):
+            responses = old_getaddrinfo(*args, **kwargs)
+            # Filter to only AF_INET (IPv4)
+            return [res for res in responses if res[0] == socket.AF_INET]
+        socket.getaddrinfo = force_ipv4_getaddrinfo
+
         # Using Gmail's SMTP server as default, can be modified
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
