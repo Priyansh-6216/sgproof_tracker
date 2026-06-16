@@ -4,6 +4,7 @@ import subprocess
 import threading
 import sys
 import json
+import queue
 from datetime import datetime
 from pathlib import Path
 # pyrefly: ignore [missing-import]
@@ -17,19 +18,48 @@ app.config['UPLOAD_FOLDER'] = '.'
 PRODUCTS_CSV = "products.csv"
 STATUS_FILE = "status.json"
 
+job_queue = queue.Queue()
+status_lock = threading.Lock()
+
 def update_status(msg, is_running=False):
-    data = {"message": msg, "is_running": is_running}
-    with open(STATUS_FILE, "w") as f:
-        json.dump(data, f)
+    with status_lock:
+        data = {
+            "message": msg,
+            "is_running": is_running,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        with open(STATUS_FILE, "w") as f:
+            json.dump(data, f)
 
 def run_tracker_job():
     print("Running tracker.py...")
-    update_status("Tracker is running... This may take a few minutes.", True)
+    update_status("Tracker started...", True)
     try:
         # Delete old file so we don't accidentally send a stale report
         Path("deals_today.html").unlink(missing_ok=True)
-        # Run the tracker script
-        os.system("python tracker.py")
+        
+        # Run the tracker script with live output parsing
+        process = subprocess.Popen(
+            [sys.executable, "tracker.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        
+        for line in process.stdout:
+            # Parse output to update status
+            clean_line = line.strip()
+            # If the log contains product search, update the frontend status
+            if "Searching for product:" in clean_line or "Opening SGProof" in clean_line or "Locating age gate" in clean_line:
+                # remove the timestamp prefix if it exists [2026-06-15 20:02:31]
+                msg = clean_line.split("]", 1)[1].strip() if "]" in clean_line else clean_line
+                update_status(msg, True)
+            print(line, end="")
+            
+        process.wait()
+        if process.returncode != 0:
+            raise Exception(f"Tracker failed with exit code {process.returncode}")
+
         print("Tracker completed successfully. Sending email...")
         success = send_deals_email()
         if success:
@@ -40,6 +70,17 @@ def run_tracker_job():
     except Exception as e:
         print(f"Error running tracker or sending email: {e}")
         update_status(f"Error occurred: {str(e)}", False)
+
+def worker():
+    while True:
+        job = job_queue.get()
+        if job == "run_tracker":
+            run_tracker_job()
+        job_queue.task_done()
+
+# Start worker ONLY once
+worker_thread = threading.Thread(target=worker, daemon=True)
+worker_thread.start()
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
@@ -128,10 +169,27 @@ def upload_file():
 
 @app.route("/api/run_tracker", methods=["POST"])
 def run_tracker():
-    # Run tracker in background thread so UI doesn't hang
-    thread = threading.Thread(target=run_tracker_job)
-    thread.start()
-    return jsonify({"success": True, "message": "Tracker started in background."})
+    if not job_queue.empty():
+        return jsonify({
+            "success": False,
+            "message": "Tracker already running or queued"
+        }), 429
+
+    # Alternatively, you can read status_lock to check if it's currently running,
+    # but checking queue empty is a good start. Let's make sure it's not currently running by checking status.json
+    try:
+        with open(STATUS_FILE, "r") as f:
+            status = json.load(f)
+            if status.get("is_running"):
+                return jsonify({"success": False, "message": "Tracker already running"}), 429
+    except:
+        pass
+
+    job_queue.put("run_tracker")
+    return jsonify({
+        "success": True,
+        "message": "Tracker queued successfully"
+    })
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

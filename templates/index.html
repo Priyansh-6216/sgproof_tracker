@@ -47,7 +47,15 @@
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem; text-align: center;">Replaces current product list</p>
             </div>
 
-            <button id="runBtn" class="btn-run">▶ Run Tracker & Send Email</button>
+            <div class="glass-panel status-panel" style="margin-top: 1rem; border-left: 4px solid var(--accent);">
+                <h2>Live Status</h2>
+                <p id="liveStatusText" style="font-size: 0.9rem; margin-top: 0.5rem; color: var(--text-secondary);">Ready to run.</p>
+                <div id="loadingIndicator" style="display: none; margin-top: 1rem; color: var(--accent); font-weight: bold;">
+                    ⏳ Running...
+                </div>
+            </div>
+
+            <button id="runBtn" class="btn-run" style="margin-top: 1rem;">▶ Run Tracker & Send Email</button>
         </div>
 
         <!-- Main Content -->
@@ -180,8 +188,13 @@
         document.getElementById('runBtn').addEventListener('click', async () => {
             try {
                 const res = await fetch('/api/run_tracker', { method: 'POST' });
-                if (res.ok) {
-                    showToast('Tracker started! Email will be sent upon completion.');
+                if (res.ok || res.status === 429) {
+                    if (res.ok) {
+                        showToast('Tracker queued! Monitoring live status...');
+                    } else {
+                        showToast('Tracker is already running', true);
+                    }
+                    startStatusPolling();
                 } else {
                     showToast('Failed to start tracker', true);
                 }
@@ -190,8 +203,59 @@
             }
         });
 
+        // Polling logic for Live Updates
+        let pollingInterval = null;
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('liveStatusText').textContent = data.message || 'Ready to run.';
+                    
+                    if (data.is_running) {
+                        document.getElementById('loadingIndicator').style.display = 'block';
+                        document.getElementById('runBtn').disabled = true;
+                        document.getElementById('runBtn').style.opacity = '0.5';
+                    } else {
+                        document.getElementById('loadingIndicator').style.display = 'none';
+                        document.getElementById('runBtn').disabled = false;
+                        document.getElementById('runBtn').style.opacity = '1';
+                        
+                        // If it just finished and email was sent
+                        if (data.message && data.message.includes('Email successfully sent')) {
+                            showToast(data.message);
+                            stopStatusPolling(); // Stop polling when done
+                        } else if (data.message && (data.message.includes('Error') || data.message.includes('failed'))) {
+                            showToast(data.message, true);
+                            stopStatusPolling();
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching status:", err);
+            }
+        }
+
+        function startStatusPolling() {
+            if (!pollingInterval) {
+                fetchStatus(); // fetch immediately
+                pollingInterval = setInterval(fetchStatus, 2000); // poll every 2 seconds
+            }
+        }
+
+        function stopStatusPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+
         // Initial load
         loadProducts();
+        
+        // Start polling immediately in case a job is already running
+        startStatusPolling();
     </script>
 </body>
 </html>
