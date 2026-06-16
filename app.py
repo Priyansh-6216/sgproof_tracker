@@ -61,12 +61,12 @@ def run_tracker_job():
             raise Exception(f"Tracker failed with exit code {process.returncode}")
 
         print("Tracker completed successfully. Sending email...")
-        success = send_deals_email()
+        success, email_msg = send_deals_email()
         if success:
             now = datetime.now().strftime("%Y-%m-%d %I:%M %p")
             update_status(f"Email successfully sent on {now}.", False)
         else:
-            update_status("Tracker finished, but email failed to send.", False)
+            update_status(f"Tracker finished, but email failed: {email_msg}", False)
     except Exception as e:
         print(f"Error running tracker or sending email: {e}")
         update_status(f"Error occurred: {str(e)}", False)
