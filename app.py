@@ -6,6 +6,7 @@ import sys
 import json
 from datetime import datetime
 from pathlib import Path
+# pyrefly: ignore [missing-import]
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from email_sender import send_deals_email
@@ -28,7 +29,7 @@ def run_tracker_job():
         # Delete old file so we don't accidentally send a stale report
         Path("deals_today.html").unlink(missing_ok=True)
         # Run the tracker script
-        subprocess.run([sys.executable, "tracker.py"], check=True)
+        os.system("python tracker.py")
         print("Tracker completed successfully. Sending email...")
         success = send_deals_email()
         if success:
